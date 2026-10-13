@@ -27,6 +27,8 @@ pub struct ClientCore {
   mut outbox : Array[Bytes]
   mut next_sid : Int
   mut pending_pings : Int
+  mut pending_requests : Array[PendingRequestState]
+  mut request_sequence : Int
   mut server : ServerInfo?
   limits : NatsLimits
 }
@@ -40,6 +42,8 @@ pub fn client_core(limits? : NatsLimits = nats_limits()) -> ClientCore {
     outbox: [],
     next_sid: 1,
     pending_pings: 0,
+    pending_requests: [],
+    request_sequence: 1,
     server: None,
     limits,
   }
@@ -58,6 +62,11 @@ pub fn ClientCore::server_info(self : ClientCore) -> ServerInfo? {
 ///|
 pub fn ClientCore::pending_pings(self : ClientCore) -> Int {
   self.pending_pings
+}
+
+///|
+pub fn ClientCore::pending_request_count(self : ClientCore) -> Int {
+  self.pending_requests.length()
 }
 
 ///|
@@ -340,6 +349,7 @@ fn ClientCore::handle_operation(
       Ok(Some(ServerInformation(info)))
     }
     Message(message) => {
+      complete_pending_request(self, message.sid)
       let delivered = match self.subscriptions.dispatch(message) {
         Ok(value) => value
         Err(error) => return Err(error)
