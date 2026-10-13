@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up MoonBit
+        uses: hustcer/setup-moonbit@v1.22
+        with:
+          version: 0.10.9+6e6c44045
+          core-version: 0.10.9+6e6c44045
+      - name: Show toolchain
+        run: moon version --all
+      - name: Check formatting
+        run: moon fmt --check
+      - name: Check native
+        run: moon check --target native --deny-warn
+      - name: Build native
+        run: moon build --target native --deny-warn
+      - name: Test native
+        run: moon test --target native --deny-warn
+      - name: Check wasm-gc
+        run: moon check --target wasm-gc --deny-warn
+      - name: Build wasm-gc
+        run: moon build --target wasm-gc --deny-warn
+      - name: Test wasm-gc
+        run: moon test --target wasm-gc --deny-warn
+      - name: Run workflow examples
+        run: |
+          moon run examples/event_bus
+          moon run examples/queue_workers
+          moon run examples/request_reply
+          moon run examples/reconnect
+          moon run cmd/main
+      - name: Update and verify public interface
+        shell: pwsh
+        run: |
+          moon info
+          git diff --exit-code -- '*.mbti'
+      - name: Check source and commit gates
+        shell: pwsh
+        run: ./tools/source-metrics.ps1
+      - name: Run codec throughput smoke benchmark
+        if: matrix.os == 'ubuntu-latest'
+        shell: pwsh
+        run: ./tools/benchmark.ps1
+      - name: Inspect package contents
+        if: matrix.os == 'ubuntu-latest'
+        run: moon package --list
