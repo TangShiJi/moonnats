@@ -39,16 +39,73 @@ fn find_crlf(buffer : Array[Byte], start : Int) -> Int? {
 ///|
 fn server_info_from_json(raw : String) -> Result[ServerInfo, NatsError] {
   let trimmed = raw.trim().to_owned()
-  if !trimmed.has_prefix("{") || !trimmed.has_suffix("}") {
-    return Err(
-      nats_error(
-        ProtocolViolation,
-        "INFO",
-        "INFO payload must be a JSON object",
-      ),
-    )
+  let parsed = try @json.parse(trimmed[:]) catch {
+    _ =>
+      return Err(
+        nats_error(ProtocolViolation, "INFO", "INFO payload is not valid JSON"),
+      )
+  } noraise {
+    value => value
   }
-  Ok(server_info(trimmed))
+  match parsed {
+    Object(fields) => {
+      let string_field = fn(name : String) -> String? {
+        match fields.get(name) {
+          Some(String(value)) => Some(value)
+          _ => None
+        }
+      }
+      let int_field = fn(name : String) -> Int? {
+        match fields.get(name) {
+          Some(Number(value, ..)) => Some(value.to_int())
+          _ => None
+        }
+      }
+      let bool_field = fn(name : String, default : Bool) -> Bool {
+        match fields.get(name) {
+          Some(True) => true
+          Some(False) => false
+          _ => default
+        }
+      }
+      let connect_urls : Array[String] = []
+      match fields.get("connect_urls") {
+        Some(Array(values)) =>
+          for value in values {
+            if value is String(url) {
+              connect_urls.push(url)
+            }
+          }
+        _ => ()
+      }
+      Ok(
+        server_info(
+          trimmed,
+          server_id=string_field("server_id"),
+          server_name=string_field("server_name"),
+          version=string_field("version"),
+          host=string_field("host"),
+          port=int_field("port"),
+          headers=bool_field("headers", false),
+          max_payload=int_field("max_payload"),
+          proto=int_field("proto").unwrap_or(0),
+          auth_required=bool_field("auth_required", false),
+          tls_required=bool_field("tls_required", false),
+          connect_urls~,
+          nonce=string_field("nonce"),
+          lame_duck_mode=bool_field("ldm", false),
+        ),
+      )
+    }
+    _ =>
+      Err(
+        nats_error(
+          ProtocolViolation,
+          "INFO",
+          "INFO payload must be a JSON object",
+        ),
+      )
+  }
 }
 
 ///|
