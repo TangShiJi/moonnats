@@ -1,0 +1,6 @@
+import {
+  "TangShiJi/moonnats",
+  "moonbitlang/core/encoding/utf8",
+}
+
+pkgtype(kind: "executable")
