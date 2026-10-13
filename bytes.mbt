@@ -9,13 +9,6 @@ fn text_from_bytes(value : Bytes) -> String {
 }
 
 ///|
-fn append_text(output : Array[Byte], value : String) -> Unit {
-  for byte in @utf8.encode(value[:]) {
-    output.push(byte)
-  }
-}
-
-///|
 fn append_bytes(output : Array[Byte], value : Bytes) -> Unit {
   for byte in value {
     output.push(byte)
@@ -29,11 +22,6 @@ fn bytes_concat(parts : Array[Bytes]) -> Bytes {
     append_bytes(output, part)
   }
   Bytes::from_array(output[:])
-}
-
-///|
-fn bytes_slice(value : Bytes, start : Int, end : Int) -> Bytes {
-  value[start:end].to_owned()
 }
 
 ///|
